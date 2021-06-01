@@ -32,6 +32,9 @@ export function registerRoom(room: Room, logger: (funName: string, ...param: any
         },
     });
     dsBridge.register("room.sync", {
+        syncBlockTimestamp: (timestamp: number) => {
+            room.syncBlockTimestamp(timestamp);
+        },
         /** 客户端本地效果，会导致 web 2.9.2 和 native 2.9.3 以下出现问题。*/
         disableSerialization: (disable: boolean) => {
             room.disableSerialization = disable;
@@ -146,11 +149,11 @@ export function registerRoom(room: Room, logger: (funName: string, ...param: any
             return responseCallback(JSON.stringify(room.state.sceneState.scenes));
         },
         getZoomScale: (responseCallback: any) => {
-            logger("getZoomScale", room.state.zoomScale);
+            logger("getZoomScale", room.state.cameraState.scale);
             return responseCallback(JSON.stringify(room.state.zoomScale));
         },
         getBroadcastState: (responseCallback: any) => {
-            logger("getBroadcastState", room.state.zoomScale);
+            logger("getBroadcastState", room.state.broadcastState);
             return responseCallback(JSON.stringify(room.state.broadcastState));
         },
         getRoomPhase: (responseCallback: any) => {
