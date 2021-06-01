@@ -7,12 +7,17 @@ import {NativeSDKConfig, NativeJoinRoomParams, NativeReplayParams} from "./utils
 import {registerPlayer, registerRoom, Rtc} from "./bridge";
 import {videoPlugin} from "@netless/white-video-plugin";
 import {audioPlugin} from "@netless/white-audio-plugin";
+import {videoPlugin2} from "@netless/white-video-plugin2";
+import {audioPlugin2} from "@netless/white-audio-plugin2";
+import {videoJsPlugin} from "@netless/video-js-plugin";
 import multipleDomain from "./utils/MultipleDomain";
 import {convertBound} from "./utils/BoundConvert";
 import {globalErrorEvent, postCustomMessage} from "./utils/Funs";
 import {CursorTool} from "@netless/cursor-tool";
 import CombinePlayerFactory from "@netless/combine-player";
 import "./App.css";
+import { hookCreateElement } from './utils/ImgError';
+import { postIframeMessage } from './utils/iFrame';
 
 let showLog = false;
 const lastSchedule = {
@@ -92,7 +97,7 @@ export default function App() {
             return url;
         } : undefined;
 
-        const {log, __nativeTags, __platform, initializeOriginsStates, userCursor, enableInterrupterAPI, routeBackup, enableRtcIntercept, enableIFramePlugin, ...restConfig} = config;
+        const {log, __nativeTags, __platform, initializeOriginsStates, userCursor, enableInterrupterAPI, routeBackup, enableRtcIntercept, enableImgErrorCallback, enableIFramePlugin, ...restConfig} = config;
 
         showLog = !!log;
         nativeConfig = config;
@@ -102,7 +107,11 @@ export default function App() {
         if (__platform) {
             window.__platform = __platform;
         }
-        
+
+        if (enableImgErrorCallback) {
+            hookCreateElement();
+        }
+
         cursorAdapter = !!userCursor ? new CursorTool() : undefined;
 
         if (__nativeTags) {
@@ -118,7 +127,7 @@ export default function App() {
             (pptParams as any).rtcClient = rtcClient;
         }
 
-        const plugins = createPlugins({"video": videoPlugin, "audio": audioPlugin});
+        const plugins = createPlugins({"video": videoPlugin, "audio": audioPlugin, "video2": videoPlugin2, "audio2": audioPlugin2, "video.js": videoJsPlugin});
         try {
             sdk = new WhiteWebSdk({
                 ...restConfig,
@@ -351,6 +360,9 @@ export default function App() {
                 lastSchedule.time = 0;
                 logger("onPhaseChanged:", phase);
                 dsBridge.call("player.onPhaseChanged", phase);
+                if (nativeConfig?.enableIFramePlugin) {
+                    postIframeMessage({eventName: "onPhaseChanged", params: [phase]}, logger);
+                }
             };
 
             // combine-player 没有 WaitingFirstFrame 和 Stopped 两个状态，这里根据原始 player 进行触发。
@@ -372,26 +384,40 @@ export default function App() {
         // 2. Android 目前 playState diff 的正确性。
         dsBridge.call("player.onPlayerStateChanged", JSON.stringify(player!.state));
         dsBridge.call("player.onLoadFirstFrame");
+        if (nativeConfig?.enableIFramePlugin) {
+            postIframeMessage({eventName: "onLoadFirstFrame", params: []}, logger);
+        }
     }
 
     function onPlayerStateChanged(modifyState) {
         dsBridge.call("player.onPlayerStateChanged", JSON.stringify(modifyState));
+        if (nativeConfig?.enableIFramePlugin) {
+            postIframeMessage({eventName: "onPlayerStateChanged", params: [modifyState]}, logger);
+        }
     }
 
     function onStoppedWithError(error) {
         dsBridge.call("player.onStoppedWithError", JSON.stringify({"error": error.message, jsStack: error.stack}));
+        if (nativeConfig?.enableIFramePlugin) {
+            postIframeMessage({eventName: "onStoppedWithError", params: [error]}, logger);
+        }
     }
 
     function onProgressTimeChanged(scheduleTime, step) {
         limitScheduleCallback(() => {dsBridge.call("player.onScheduleTimeChanged", scheduleTime); }, scheduleTime, step);
+        if (nativeConfig?.enableIFramePlugin) {
+            postIframeMessage({eventName: "onProgressTimeChanged", params: [scheduleTime]}, logger);
+        }
     }
 
     // DisplayerCallbacks
     function onCatchErrorWhenAppendFrame(userId: number, error: Error) {
+        logger("onCatchErrorWhenAppendFrame", [userId, error.message]);
+        // TODO: 在初始化 room 过程中，就回调该方法的话，对于 room 的判断会存在问题
         if (room) {
             dsBridge.call("room.fireCatchErrorWhenAppendFrame", {userId: userId, error: error.message});
         } else {
-            dsBridge.call("player.fireCatchErrorWhenAppendFrame", {userId: userId, error: error.message});
+            // dsBridge.call("player.fireCatchErrorWhenAppendFrame", {userId: userId, error: error.message});
         }
     }
 

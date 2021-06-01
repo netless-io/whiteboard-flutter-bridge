@@ -8,15 +8,19 @@ const {CleanWebpackPlugin} = require('clean-webpack-plugin');
 const TerserJSPlugin = require('terser-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin');
+const child_progress = require("child_process");
+
+const gitHash = child_progress.execSync("git rev-parse --short HEAD").toString().trim();
 
 config = {
   entry: './src/index',
   output: {
     path: path.join(__dirname, '/build'),
-    filename: '[name].[contenthash:8].js'
+    filename: `[name].[contenthash:8]-${gitHash}.js`
   },
   resolve: {
-    extensions: ['.ts', '.tsx', '.js']
+    extensions: ['.ts', '.tsx', '.js'],
+    mainFields: ["main", "module"]
   },
   optimization: {
     minimizer: [new TerserJSPlugin({extractComments: false}), new OptimizeCSSAssetsPlugin({})],
@@ -47,8 +51,8 @@ config = {
       template: './src/index.html'
     }),
     new MiniCssExtractPlugin({
-      filename: '[name].css',
-      chunkFilename: '[name].[contenthash:8].css',
+      filename: `[name].css`,
+      chunkFilename: `[name].[contenthash:8]-${gitHash}.css`,
       ignoreOrder: false, // Enable to remove warnings about conflicting order
     }),
   ],
